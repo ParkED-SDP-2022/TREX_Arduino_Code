@@ -1,9 +1,9 @@
 
-#include <ros.h>
-#include <std_msgs/String.h>
-#include <std_msgs/UInt16.h>
-#include <std_msgs/UInt16MultiArray.h>
-#include <geometry_msgs/Twist.h>
+//#include <ros.h>
+//#include <std_msgs/String.h>
+//#include <std_msgs/UInt16.h>
+//#include <std_msgs/UInt16MultiArray.h>
+//#include <geometry_msgs/Twist.h>
 #include <Wire.h>
 
 // PID Library used: AutoPID by <Ryan Downing>
@@ -34,73 +34,74 @@ int rmenc=0;
 
 
 //pid settings and gains
-#define OUTPUT_MIN 0
+#define OUTPUT_MIN -30
 #define OUTPUT_MAX 150
-#define KP 5
-#define KI 3
-#define KD 2
+#define KP 2
+#define KI 0.5
+#define KD 0
 
-double desiredRateLeftEncoder, desiredRateRightEncoder, rateLeftEncoder, rateRightEncoder; // output is missing from here as they have been defined above as lmspeed and rmspeed
+double desiredRateRightEncoder, rateLeftEncoder, rateRightEncoder; // output is missing from here as they have been defined above as lmspeed and rmspeed
+double desiredRateLeftEncoder = 0;
 
 //input/output variables passed by reference, so they are updated automatically
 AutoPID leftPID(&rateLeftEncoder, &desiredRateLeftEncoder, &lmspeed, OUTPUT_MIN, OUTPUT_MAX, KP, KI, KD);
-AutoPID rightPID(&rateRightEncoder, &desiredRateRightEncoder, &rmspeed, OUTPUT_MIN, OUTPUT_MAX, KP, KI, KD);
+//AutoPID rightPID(&rateRightEncoder, &desiredRateRightEncoder, &rmspeed, OUTPUT_MIN, OUTPUT_MAX, KP, KI, KD);
 
 
 
-ros::NodeHandle node_handle;
+//ros::NodeHandle node_handle;
 
-std_msgs::UInt16 encoder_data_msg;
-geometry_msgs::Twist cmd_vel_msg;
+//std_msgs::UInt16 encoder_data_msg;
+//geometry_msgs::Twist cmd_vel_msg;
 
-void subscriberCallback(const geometry_msgs::Twist& cmd_vel_msg) {
-  // define all possible situations here
+//void subscriberCallback(const geometry_msgs::Twist& cmd_vel_msg) {
+//  // define all possible situations here
+//
+//  if (cmd_vel_msg.angular.z == 0 && cmd_vel_msg.linear.x > 0) {
+//    desiredRateLeftEncoder = 100;
+//    desiredRateRightEncoder = 100;
+//  } else if (cmd_vel_msg.angular.z == 0 && cmd_vel_msg.linear.x == 0) {
+//    lmspeed = 0;
+//    rmspeed = 0;
+//    desiredRateLeftEncoder = 0;
+//    desiredRateRightEncoder = 0;
+//  } else if (cmd_vel_msg.angular.z != 0 && cmd_vel_msg.linear.x == 0) {
+//    lmspeed = 0;
+//    rmspeed = 0;
+//    if (cmd_vel_msg.angular.z > 0) {
+//      desiredRateLeftEncoder = 70;
+//      desiredRateRightEncoder = -70;
+//    } else {
+//      desiredRateLeftEncoder = -70;
+//      desiredRateRightEncoder = 70;
+//    }
+//  } else {
+//    lmspeed = 0;
+//    rmspeed = 0;
+//    desiredRateLeftEncoder = 0;
+//    desiredRateRightEncoder = 0;
+////    node_handle.logerror("Stopping the robot.");
+//  }
+//}
 
-  if (cmd_vel_msg.angular.z == 0 && cmd_vel_msg.linear.x > 0) {
-    desiredRateLeftEncoder = 100;
-    desiredRateRightEncoder = 100;
-  } else if (cmd_vel_msg.angular.z == 0 && cmd_vel_msg.linear.x == 0) {
-    lmspeed = 0;
-    rmspeed = 0;
-    desiredRateLeftEncoder = 0;
-    desiredRateRightEncoder = 0;
-  } else if (cmd_vel_msg.angular.z != 0 && cmd_vel_msg.linear.x == 0) {
-    lmspeed = 0;
-    rmspeed = 0;
-    if (cmd_vel_msg.angular.z > 0) {
-      desiredRateLeftEncoder = 70;
-      desiredRateRightEncoder = -70;
-    } else {
-      desiredRateLeftEncoder = -70;
-      desiredRateRightEncoder = 70;
-    }
-  } else {
-    lmspeed = 0;
-    rmspeed = 0;
-    desiredRateLeftEncoder = 0;
-    desiredRateRightEncoder = 0;
-    node_handle.logerror("Stopping the robot.");
-  }
-}
-
-ros::Publisher encoder_rate_publisher("encoder_rate", &encoder_data_msg);
-ros::Subscriber<geometry_msgs::Twist> cmd_vel_subscriber("/cmd_vel", &subscriberCallback);
+//ros::Publisher encoder_rate_publisher("encoder_rate", &encoder_data_msg);
+//ros::Subscriber<geometry_msgs::Twist> cmd_vel_subscriber("/cmd_vel", &subscriberCallback);
 
 
 void setup()
 { 
-  node_handle.getHardware()->setBaud(57600);
-  node_handle.initNode();
-  node_handle.advertise(encoder_rate_publisher);
-  node_handle.subscribe(cmd_vel_subscriber);
+  //node_handle.getHardware()->setBaud(57600);
+  //node_handle.initNode();
+  //node_handle.advertise(encoder_rate_publisher);
+  //node_handle.subscribe(cmd_vel_subscriber);
   Wire.begin();
 
   // sets to minimum or maximum output when the deviation in desired output is less than or greater than the specified value below
-  leftPID.setBangBang(40);
-  rightPID.setBangBang(40);
+  
+  //rightPID.setBangBang(40);
   // tune output every 0.5s
-  leftPID.setTimeStep(500);
-  rightPID.setTimeStep(500);
+  leftPID.setTimeStep(100);
+  //rightPID.setTimeStep(500);
 }
 
 
@@ -108,7 +109,7 @@ void loop()
 {
  
   
-  MasterSend(startbyte,2,lmspeed,lmbrake,rmspeed,rmbrake,sv[0],sv[1],sv[2],sv[3],sv[4],sv[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq);
+  MasterSend(startbyte,2,(int)lmspeed,lmbrake,(int)rmspeed,rmbrake,sv[0],sv[1],sv[2],sv[3],sv[4],sv[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq);
   delay(50);
 
   double oldlmenc = lmenc;
@@ -130,11 +131,11 @@ void loop()
   
   // PID will tune output.
   leftPID.run();
-  rightPID.run();
+  //rightPID.run();
   
-  encoder_data_msg.data = rateRightEncoder;
-  encoder_rate_publisher.publish( &encoder_data_msg );
-  node_handle.spinOnce();
-  delay(1);
+ // encoder_data_msg.data = rateRightEncoder;
+ // encoder_rate_publisher.publish( &encoder_data_msg );
+  //node_handle.spinOnce();
+ // delay(50);
 
 }
