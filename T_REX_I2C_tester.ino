@@ -34,20 +34,29 @@ int rmenc=0;
 
 
 //pid settings and gains
-#define OUTPUT_MIN -30
+#define OUTPUT_MIN 0
 #define OUTPUT_MAX 150
 #define KP 2
-#define KI 0.5
-#define KD 0
+#define KI 1.3
+#define KD 0.1
 
 double desiredRateRightEncoder, rateLeftEncoder, rateRightEncoder; // output is missing from here as they have been defined above as lmspeed and rmspeed
-double desiredRateLeftEncoder = 0;
+double desiredRateLeftEncoder;
 
 //input/output variables passed by reference, so they are updated automatically
 AutoPID leftPID(&rateLeftEncoder, &desiredRateLeftEncoder, &lmspeed, OUTPUT_MIN, OUTPUT_MAX, KP, KI, KD);
-//AutoPID rightPID(&rateRightEncoder, &desiredRateRightEncoder, &rmspeed, OUTPUT_MIN, OUTPUT_MAX, KP, KI, KD);
+AutoPID rightPID(&rateRightEncoder, &desiredRateRightEncoder, &rmspeed, OUTPUT_MIN, OUTPUT_MAX, KP, KI, KD);
 
 
+double clamp(double x, double a, double b) {
+  if (x > a) {
+    return a;
+  } else if (x < b) {
+    return b;
+  } else {
+    return x;
+  }
+}
 
 //ros::NodeHandle node_handle;
 
@@ -90,24 +99,39 @@ AutoPID leftPID(&rateLeftEncoder, &desiredRateLeftEncoder, &lmspeed, OUTPUT_MIN,
 
 void setup()
 { 
-  //node_handle.getHardware()->setBaud(57600);
+//  node_handle.getHardware()->setBaud(57600);
   //node_handle.initNode();
   //node_handle.advertise(encoder_rate_publisher);
   //node_handle.subscribe(cmd_vel_subscriber);
+  Serial.begin(57600);
+  desiredRateLeftEncoder = 0;
+  desiredRateRightEncoder = 0;
   Wire.begin();
 
   // sets to minimum or maximum output when the deviation in desired output is less than or greater than the specified value below
   
-  //rightPID.setBangBang(40);
   // tune output every 0.5s
   leftPID.setTimeStep(100);
-  //rightPID.setTimeStep(500);
+  rightPID.setTimeStep(100);
 }
 
 
 void loop()
 {
- 
+ if(Serial.available () != 0){
+//  Serial.println(420);
+  int tmp = Serial.parseInt();
+  Serial.read();
+  if (tmp != 0){
+    desiredRateLeftEncoder = tmp;
+    desiredRateRightEncoder = tmp;
+  }
+  else if (tmp == -1){
+    desiredRateLeftEncoder = 0;
+    desiredRateRightEncoder = 0;
+  }
+  
+ }
   
   MasterSend(startbyte,2,(int)lmspeed,lmbrake,(int)rmspeed,rmbrake,sv[0],sv[1],sv[2],sv[3],sv[4],sv[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq);
   delay(50);
@@ -123,6 +147,11 @@ void loop()
   // Calculates the encoder rate of change. Think about if we really need to divide the rate variable by time. I dont think we do.
   rateRightEncoder = rmenc - oldrmenc;
   rateLeftEncoder = lmenc - oldlmenc;
+    if (rateLeftEncoder > 255) {
+    rateLeftEncoder = 255;
+  } else if (rateLeftEncoder < -255) {
+    rateLeftEncoder = -255;
+  }
 //  String abc = "hello";
 //  node_handle.loginfo("Right encoder rate " + toCharArray(String(rateRightEncoder)));
 //  node_handle.loginfo(rateRightEncoder);
@@ -130,8 +159,23 @@ void loop()
 //  node_handle.loginfo(rateLeftEncoder);
   
   // PID will tune output.
+  leftPID.setIntegral(clamp(leftPID.getIntegral(), 250, -250));
   leftPID.run();
-  //rightPID.run();
+  Serial.print(rateLeftEncoder);
+  Serial.print(", "); // a space ' ' or  tab '\t' character is printed between the two values.
+  
+  Serial.print(desiredRateLeftEncoder);
+  Serial.print(", ");
+  Serial.print(lmspeed);
+  Serial.print(", ");
+  Serial.println(leftPID.getIntegral());
+  
+//  Serial.print(" "); // a space ' ' or  tab '\t' character is printed between the two values.
+//  Serial.print(y3);
+//  Serial.print(" "); // a space ' ' or  tab '\t' character is printed between the two values.
+//  Serial.println(y4);
+  rightPID.setIntegral(clamp(rightPID.getIntegral(), 255, -255));
+  rightPID.run();
   
  // encoder_data_msg.data = rateRightEncoder;
  // encoder_rate_publisher.publish( &encoder_data_msg );

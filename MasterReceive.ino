@@ -7,24 +7,24 @@ void MasterReceive()
   
   while(Wire.available()<24)                                      // wait for entire data packet to be received
   {
-    if(i==0) Serial.print("Waiting for slave to send data.");     // Only print message once (i==0)
-    if(i>0) Serial.print(".");                                    // print a dot for every loop where buffer<24 bytes
+    //if(i==0) Serial.print("Waiting for slave to send data.");     // Only print message once (i==0)
+    //if(i>0) Serial.print(".");                                    // print a dot for every loop where buffer<24 bytes
     i++;                                                          // increment i so that message only prints once.
     if(i>79)
     {
-      Serial.println("");
+      //Serial.println("");
       i=1;
     }
   }
   d=Wire.read();                                                  // read start byte from buffer
   if(d!=startbyte)                                                // if start byte not equal to 0x0F                                                    
   {
-    Serial.print(d,DEC);
+    //Serial.print(d,DEC);
     while(Wire.available()>0)                                     // empty buffer of bad data
     {
       d=Wire.read();
     }
-    Serial.println("  Wrong Start Byte");                         // error message
+    //Serial.println("  Wrong Start Byte");                         // error message
     return;                                                       // quit
   }
   
@@ -50,6 +50,7 @@ void MasterReceive()
   
   i=Wire.read()*256+Wire.read();
   data[4] = i;
+//  i = constraint(i, -255, 255);
   lmenc=i;
 //  Serial.print("Left  Motor Encoder:\t");
 //  Serial.println(i);                                              // T'REX left  motor encoder count
@@ -96,17 +97,17 @@ void MasterReceive()
 //  Serial.print("\r\n\n\n");
 
 //  Serial.println("packet started");
-
-  for(int i=0; i<sizeof(data) / sizeof(data[0]); i++)
-   {
-      Serial.print(data[i]);
-      if (i != sizeof(data)) {
-        Serial.print(",");
-      }
-      
-      
-   }
-   Serial.println("\n");
+//
+//  for(int i=0; i<sizeof(data) / sizeof(data[0]); i++)
+//   {
+////      Serial.print(data[i]);
+//      if (i != sizeof(data)) {
+//        Serial.print(",");
+//      }
+//      
+//      
+//   }
+//   Serial.println("\n");
 //   Serial.println("Packet finished");
   
 }
