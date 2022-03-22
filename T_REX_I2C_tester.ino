@@ -1,12 +1,5 @@
 
 #include <SerialTransfer.h>
-
-
-//#include <ros.h>
-//#include <std_msgs/String.h>
-//#include <std_msgs/UInt16.h>
-//#include <std_msgs/UInt16MultiArray.h>
-//#include <geometry_msgs/Twist.h>
 #include <Wire.h>
 
 
@@ -34,7 +27,7 @@ byte i2cfreq=0;                                      // I2C clock frequency. Def
 int lmenc=0;
 int rmenc=0;
 
-SerialTransfer sTransfer;
+SerialTransfer myTransfer;
 
 struct STRUCT {
   double dre;
@@ -50,13 +43,15 @@ struct STRUCT {
 
 //pid settings and gains
 #define OUTPUT_MIN 0
-#define OUTPUT_MAX 150
+#define OUTPUT_MAX 180
 #define KP_L 2
 #define KI_L 1.3
-#define KD_L 0.1
+#define KD_L 0.2
 #define KP_R 2
 #define KI_R 1.3
 #define KD_R 0.1
+bool sync = false;
+bool resetIntegral = false;
 
 double desiredRateRightEncoder, rateLeftEncoder, rateRightEncoder; // output is missing from here as they have been defined above as lmspeed and rmspeed
 double desiredRateLeftEncoder;
@@ -76,33 +71,17 @@ double clamp(double x, double a, double b) {
   }
 }
 
-void tune() {
-  desiredRateLeftEncoder = tuningPacket.dle;
-  desiredRateRightEncoder = tuningPacket.dre;
-  if (tuningPacket.pid_params) {
-    leftPID.setGains(tuningPacket.kp_l, tuningPacket.ki_l, tuningPacket.kd_l);
-    rightPID.setGains(tuningPacket.kp_r, tuningPacket.ki_r, tuningPacket.kd_r);
-  }
-  
-}
-
-
 void setup()
 { 
-//  node_handle.getHardware()->setBaud(57600);
-  //node_handle.initNode();
-  //node_handle.advertise(encoder_rate_publisher);
-  //node_handle.subscribe(cmd_vel_subscriber);
-//  Serial.begin(115200);
   Serial.begin(115200);
-//  sTransfer.begin(Serial);
+//  myTransfer.begin(Serial);
   desiredRateLeftEncoder = 0;
   desiredRateRightEncoder = 0;
   Wire.begin();
 
   // sets to minimum or maximum output when the deviation in desired output is less than or greater than the specified value below
   
-  // tune output every 0.5s
+  // tune output every 0.1s
   leftPID.setTimeStep(100);
   rightPID.setTimeStep(100);
 }
@@ -111,18 +90,77 @@ void setup()
 void loop()
 {
 
-  if(sTransfer.available())
-  {
-    sTransfer.rxObj(tuningPacket);
-    tune();
+//  if(myTransfer.available())
+//  {
+////    desiredRateLeftEncoder = 30;
+//    uint16_t recSize = 0;
+////    recSize = myTransfer.rxObj(tuningPacket, recSize);
+//    tune();
+//  }
+
+  if (Serial.available() > 0) {
+    // recieved data packet
+    int rcvdData[2];
+    // ready to flash the buffer
+    bool flushBuff = false;
+    // what index it is
+    int index = 0;
+    // character that marks the end of 
+    char endmarker = '\n';
+    // delimator
+    char delim = ',';
+    // string read from the end of , to the next ,
+    String interimString;
+    // recieved character
+    char rc;
+    // current integer
+    int currentInt;
+    while (Serial.available() > 0) {
+      rc = Serial.read();
+      
+      if ((rc == delim || rc == endmarker) && flushBuff == false) {
+        rcvdData[index] = interimString.toInt();
+        interimString = "";
+        index += 1;
+        if (rc == endmarker) {
+          flushBuff = true;
+        }
+      }
+      else {
+        interimString += rc;
+      }
   }
+    if (rcvdData[0] >= 0 && rcvdData[0] < 255) {
+      desiredRateLeftEncoder = rcvdData[0];
+      desiredRateRightEncoder = rcvdData[1];
+    }
+    
+
+  }
+
+  if (lmbrake == 1) {
+    lmbrake = 0;
+  }
+
+  if (desiredRateLeftEncoder == 0) {
+    lmbrake = 1;
+  }
+
+  if (rmbrake == 1) {
+    rmbrake = 0;
+  }
+
+  if (desiredRateRightEncoder == 0) {
+    rmbrake = 1;
+  }
+  
 // if(Serial.available () != 0){
 ////  Serial.println(420);
 //  int tmp = Serial.parseInt();
 //  Serial.read();
 //  if (tmp > 0){
 //    desiredRateLeftEncoder = tmp;
-//    desiredRateRightEncoder = tmp + 5;
+//    desiredRateRightEncoder = tmp;
 //  }
 //  else if (tmp == -1){
 //    lmspeed = 0;
@@ -145,36 +183,53 @@ void loop()
 
 
   // Calculates the encoder rate of change. Think about if we really need to divide the rate variable by time. I dont think we do.
+  double oldRateRightEncoder = rateRightEncoder;
+  double oldRateLeftEncoder = rateLeftEncoder;
   rateRightEncoder = rmenc - oldrmenc;
   rateLeftEncoder = lmenc - oldlmenc;
-    if (rateLeftEncoder > 255) {
-    rateLeftEncoder = 255;
-  } else if (rateLeftEncoder < -255) {
-    rateLeftEncoder = -255;
+//  if (rateLeftEncoder > 0) {
+//    rateLeftEncoder += 0;
+//  }
+    if (rateLeftEncoder > 255 || rateLeftEncoder < -255) {
+    rateLeftEncoder = oldRateLeftEncoder;
   }
-    if (rateRightEncoder > 255) {
-    rateRightEncoder = 255;
-  } else if (rateRightEncoder < -255) {
-    rateRightEncoder = -255;
+    if (rateRightEncoder > 255 || rateRightEncoder < -255) {
+    rateRightEncoder = oldRateRightEncoder;
+  }
+
+  if (desiredRateRightEncoder != desiredRateLeftEncoder) {
+    resetIntegral = true;
+  }
+  if (desiredRateRightEncoder == desiredRateLeftEncoder && resetIntegral == true) {
+    resetIntegral = false;
+    leftPID.setIntegral(0);
+    rightPID.setIntegral(0);
   }
   
+  
   // PID will tune output.
-  leftPID.setIntegral(clamp(leftPID.getIntegral(), 250, -250));
+  leftPID.setIntegral(clamp(leftPID.getIntegral(), 255, -255));
   leftPID.run();
   rightPID.setIntegral(clamp(rightPID.getIntegral(), 255, -255));
   rightPID.run();
 
-  
-//  Serial.print(rateLeftEncoder);
-//  Serial.print(", "); // a space ' ' or  tab '\t' character is printed between the two values.
-//  Serial.print(rateRightEncoder);
-//  Serial.print(", "); // a space ' ' or  tab '\t' character is printed between the two values.
+//  if (rightPID.atSetPoint(10) && leftPID.atSetPoint(10) && sync == false){
+//    sync = true;
+//    desiredRateLeftEncoder = 0;
+//    desiredRateRightEncoder = 0;
+//  }
+
 //  
-////  Serial.print(desiredRateLeftEncoder);
-////  Serial.print(", ");
-//  Serial.print(lmspeed);
-//   Serial.print(", ");
-//  Serial.print(rmspeed);
+  Serial.print(rateLeftEncoder);
+  Serial.print(", "); // a space ' ' or  tab '\t' character is printed between the two values.
+  Serial.print(rateRightEncoder);
+  Serial.print(", "); // a space ' ' or  tab '\t' character is printed between the two values.
+  
+//  Serial.print(desiredRateLeftEncoder);
+//  Serial.print(", ");
+  Serial.print(lmspeed);
+   Serial.print(", ");
+  Serial.println(rmspeed);
 //  Serial.print(", ");
 //  Serial.println(leftPID.getIntegral());
 
