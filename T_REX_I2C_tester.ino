@@ -93,9 +93,9 @@ void setup()
   //node_handle.initNode();
   //node_handle.advertise(encoder_rate_publisher);
   //node_handle.subscribe(cmd_vel_subscriber);
+//  Serial.begin(115200);
   Serial.begin(115200);
-//  Serial1.begin(115200);
-  sTransfer.begin(Serial);
+//  sTransfer.begin(Serial);
   desiredRateLeftEncoder = 0;
   desiredRateRightEncoder = 0;
   Wire.begin();
@@ -116,20 +116,22 @@ void loop()
     sTransfer.rxObj(tuningPacket);
     tune();
   }
- if(Serial.available () != 0){
-//  Serial.println(420);
-  int tmp = Serial.parseInt();
-  Serial.read();
-  if (tmp != 0){
-    desiredRateLeftEncoder = tmp;
-    desiredRateRightEncoder = tmp;
-  }
-  else if (tmp == -1){
-    desiredRateLeftEncoder = 0;
-    desiredRateRightEncoder = 0;
-  }
-  
- }
+// if(Serial.available () != 0){
+////  Serial.println(420);
+//  int tmp = Serial.parseInt();
+//  Serial.read();
+//  if (tmp > 0){
+//    desiredRateLeftEncoder = tmp;
+//    desiredRateRightEncoder = tmp + 5;
+//  }
+//  else if (tmp == -1){
+//    lmspeed = 0;
+//    rmspeed = 0;
+//    desiredRateLeftEncoder = 0;
+//    desiredRateRightEncoder = 0;
+//  }
+//  
+// }
   
   MasterSend(startbyte,2,(int)lmspeed,lmbrake,(int)rmspeed,rmbrake,sv[0],sv[1],sv[2],sv[3],sv[4],sv[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq);
   delay(50);
@@ -150,34 +152,30 @@ void loop()
   } else if (rateLeftEncoder < -255) {
     rateLeftEncoder = -255;
   }
-//  String abc = "hello";
-//  node_handle.loginfo("Right encoder rate " + toCharArray(String(rateRightEncoder)));
-//  node_handle.loginfo(rateRightEncoder);
-//  node_handle.loginfo(Prepend("abc", String(rateRightEncoder)));
-//  node_handle.loginfo(rateLeftEncoder);
+    if (rateRightEncoder > 255) {
+    rateRightEncoder = 255;
+  } else if (rateRightEncoder < -255) {
+    rateRightEncoder = -255;
+  }
   
   // PID will tune output.
   leftPID.setIntegral(clamp(leftPID.getIntegral(), 250, -250));
   leftPID.run();
-  Serial.print(rateLeftEncoder);
-  Serial.print(", "); // a space ' ' or  tab '\t' character is printed between the two values.
-  
-  Serial.print(desiredRateLeftEncoder);
-  Serial.print(", ");
-  Serial.print(lmspeed);
-  Serial.print(", ");
-  Serial.println(leftPID.getIntegral());
-  
-//  Serial.print(" "); // a space ' ' or  tab '\t' character is printed between the two values.
-//  Serial.print(y3);
-//  Serial.print(" "); // a space ' ' or  tab '\t' character is printed between the two values.
-//  Serial.println(y4);
   rightPID.setIntegral(clamp(rightPID.getIntegral(), 255, -255));
   rightPID.run();
+
   
- // encoder_data_msg.data = rateRightEncoder;
- // encoder_rate_publisher.publish( &encoder_data_msg );
-  //node_handle.spinOnce();
- // delay(50);
+//  Serial.print(rateLeftEncoder);
+//  Serial.print(", "); // a space ' ' or  tab '\t' character is printed between the two values.
+//  Serial.print(rateRightEncoder);
+//  Serial.print(", "); // a space ' ' or  tab '\t' character is printed between the two values.
+//  
+////  Serial.print(desiredRateLeftEncoder);
+////  Serial.print(", ");
+//  Serial.print(lmspeed);
+//   Serial.print(", ");
+//  Serial.print(rmspeed);
+//  Serial.print(", ");
+//  Serial.println(leftPID.getIntegral());
 
 }
