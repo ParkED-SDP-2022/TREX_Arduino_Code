@@ -1,4 +1,7 @@
 
+#include <SerialTransfer.h>
+
+
 //#include <ros.h>
 //#include <std_msgs/String.h>
 //#include <std_msgs/UInt16.h>
@@ -6,12 +9,11 @@
 //#include <geometry_msgs/Twist.h>
 #include <Wire.h>
 
+
 // PID Library used: AutoPID by <Ryan Downing>
 #include <AutoPID.h>
 
 
-#define BUTTON 8
-#define LED 13
 
 #define startbyte 0x0F
 #define I2Caddress 0x07
@@ -32,20 +34,36 @@ byte i2cfreq=0;                                      // I2C clock frequency. Def
 int lmenc=0;
 int rmenc=0;
 
+SerialTransfer sTransfer;
+
+struct STRUCT {
+  double dre;
+  double dle;
+  bool pid_params;
+  double kp_l;
+  double ki_l;
+  double kd_l;
+  double kp_r;
+  double ki_r;
+  double kd_r;
+} tuningPacket;
 
 //pid settings and gains
 #define OUTPUT_MIN 0
 #define OUTPUT_MAX 150
-#define KP 2
-#define KI 1.3
-#define KD 0.1
+#define KP_L 2
+#define KI_L 1.3
+#define KD_L 0.1
+#define KP_R 2
+#define KI_R 1.3
+#define KD_R 0.1
 
 double desiredRateRightEncoder, rateLeftEncoder, rateRightEncoder; // output is missing from here as they have been defined above as lmspeed and rmspeed
 double desiredRateLeftEncoder;
 
 //input/output variables passed by reference, so they are updated automatically
-AutoPID leftPID(&rateLeftEncoder, &desiredRateLeftEncoder, &lmspeed, OUTPUT_MIN, OUTPUT_MAX, KP, KI, KD);
-AutoPID rightPID(&rateRightEncoder, &desiredRateRightEncoder, &rmspeed, OUTPUT_MIN, OUTPUT_MAX, KP, KI, KD);
+AutoPID leftPID(&rateLeftEncoder, &desiredRateLeftEncoder, &lmspeed, OUTPUT_MIN, OUTPUT_MAX, KP_L, KI_L, KD_L);
+AutoPID rightPID(&rateRightEncoder, &desiredRateRightEncoder, &rmspeed, OUTPUT_MIN, OUTPUT_MAX, KP_R, KI_R, KD_R);
 
 
 double clamp(double x, double a, double b) {
@@ -58,43 +76,15 @@ double clamp(double x, double a, double b) {
   }
 }
 
-//ros::NodeHandle node_handle;
-
-//std_msgs::UInt16 encoder_data_msg;
-//geometry_msgs::Twist cmd_vel_msg;
-
-//void subscriberCallback(const geometry_msgs::Twist& cmd_vel_msg) {
-//  // define all possible situations here
-//
-//  if (cmd_vel_msg.angular.z == 0 && cmd_vel_msg.linear.x > 0) {
-//    desiredRateLeftEncoder = 100;
-//    desiredRateRightEncoder = 100;
-//  } else if (cmd_vel_msg.angular.z == 0 && cmd_vel_msg.linear.x == 0) {
-//    lmspeed = 0;
-//    rmspeed = 0;
-//    desiredRateLeftEncoder = 0;
-//    desiredRateRightEncoder = 0;
-//  } else if (cmd_vel_msg.angular.z != 0 && cmd_vel_msg.linear.x == 0) {
-//    lmspeed = 0;
-//    rmspeed = 0;
-//    if (cmd_vel_msg.angular.z > 0) {
-//      desiredRateLeftEncoder = 70;
-//      desiredRateRightEncoder = -70;
-//    } else {
-//      desiredRateLeftEncoder = -70;
-//      desiredRateRightEncoder = 70;
-//    }
-//  } else {
-//    lmspeed = 0;
-//    rmspeed = 0;
-//    desiredRateLeftEncoder = 0;
-//    desiredRateRightEncoder = 0;
-////    node_handle.logerror("Stopping the robot.");
-//  }
-//}
-
-//ros::Publisher encoder_rate_publisher("encoder_rate", &encoder_data_msg);
-//ros::Subscriber<geometry_msgs::Twist> cmd_vel_subscriber("/cmd_vel", &subscriberCallback);
+void tune() {
+  desiredRateLeftEncoder = tuningPacket.dle;
+  desiredRateRightEncoder = tuningPacket.dre;
+  if (tuningPacket.pid_params) {
+    leftPID.setGains(tuningPacket.kp_l, tuningPacket.ki_l, tuningPacket.kd_l);
+    rightPID.setGains(tuningPacket.kp_r, tuningPacket.ki_r, tuningPacket.kd_r);
+  }
+  
+}
 
 
 void setup()
@@ -103,7 +93,9 @@ void setup()
   //node_handle.initNode();
   //node_handle.advertise(encoder_rate_publisher);
   //node_handle.subscribe(cmd_vel_subscriber);
-  Serial.begin(57600);
+  Serial.begin(115200);
+//  Serial1.begin(115200);
+  sTransfer.begin(Serial);
   desiredRateLeftEncoder = 0;
   desiredRateRightEncoder = 0;
   Wire.begin();
@@ -118,6 +110,12 @@ void setup()
 
 void loop()
 {
+
+  if(sTransfer.available())
+  {
+    sTransfer.rxObj(tuningPacket);
+    tune();
+  }
  if(Serial.available () != 0){
 //  Serial.println(420);
   int tmp = Serial.parseInt();
