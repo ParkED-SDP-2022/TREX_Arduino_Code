@@ -1,11 +1,6 @@
-
-#include <SerialTransfer.h>
 #include <Wire.h>
-
-
 // PID Library used: AutoPID by <Ryan Downing>
 #include <AutoPID.h>
-
 
 
 #define startbyte 0x0F
@@ -27,38 +22,28 @@ byte i2cfreq=0;                                      // I2C clock frequency. Def
 int lmenc=0;
 int rmenc=0;
 
-SerialTransfer myTransfer;
-
-struct STRUCT {
-  double dre;
-  double dle;
-  bool pid_params;
-  double kp_l;
-  double ki_l;
-  double kd_l;
-  double kp_r;
-  double ki_r;
-  double kd_r;
-} tuningPacket;
 
 //pid settings and gains
-#define OUTPUT_MIN 0
-#define OUTPUT_MAX 180
+#define OUTPUT_MIN_FORWARDS 0                                 
+#define OUTPUT_MAX_FORWARDS 180
+#define OUTPUT_MIN_BACKWARDS -180                                 
+#define OUTPUT_MAX_BACKWARDS 0
+
 #define KP_L 2
 #define KI_L 1.3
 #define KD_L 0.2
 #define KP_R 2
 #define KI_R 1.3
 #define KD_R 0.1
+
 bool sync = false;
 bool resetIntegral = false;
 
-double desiredRateRightEncoder, rateLeftEncoder, rateRightEncoder; // output is missing from here as they have been defined above as lmspeed and rmspeed
-double desiredRateLeftEncoder;
+double desiredRateRightEncoder, desiredRateLeftEncoder, rateLeftEncoder, rateRightEncoder; // output is missing from here as they have been defined above as lmspeed and rmspeed
 
 //input/output variables passed by reference, so they are updated automatically
-AutoPID leftPID(&rateLeftEncoder, &desiredRateLeftEncoder, &lmspeed, OUTPUT_MIN, OUTPUT_MAX, KP_L, KI_L, KD_L);
-AutoPID rightPID(&rateRightEncoder, &desiredRateRightEncoder, &rmspeed, OUTPUT_MIN, OUTPUT_MAX, KP_R, KI_R, KD_R);
+AutoPID leftPID(&rateLeftEncoder, &desiredRateLeftEncoder, &lmspeed, OUTPUT_MIN_FORWARDS, OUTPUT_MAX_FORWARDS, KP_L, KI_L, KD_L);
+AutoPID rightPID(&rateRightEncoder, &desiredRateRightEncoder, &rmspeed, OUTPUT_MIN_FORWARDS, OUTPUT_MAX_FORWARDS, KP_R, KI_R, KD_R);
 
 
 double clamp(double x, double a, double b) {
@@ -73,13 +58,10 @@ double clamp(double x, double a, double b) {
 
 void setup()
 { 
+  Wire.begin();
   Serial.begin(115200);
-//  myTransfer.begin(Serial);
   desiredRateLeftEncoder = 0;
   desiredRateRightEncoder = 0;
-  Wire.begin();
-
-  // sets to minimum or maximum output when the deviation in desired output is less than or greater than the specified value below
   
   // tune output every 0.1s
   leftPID.setTimeStep(100);
@@ -90,13 +72,8 @@ void setup()
 void loop()
 {
 
-//  if(myTransfer.available())
-//  {
-////    desiredRateLeftEncoder = 30;
-//    uint16_t recSize = 0;
-////    recSize = myTransfer.rxObj(tuningPacket, recSize);
-//    tune();
-//  }
+  double oldDesiredRateLeftEncoder = desiredRateLeftEncoder;
+  double oldDesiredRateRightEncoder = desiredRateRightEncoder;
 
   if (Serial.available() > 0) {
     // recieved data packet
@@ -134,25 +111,22 @@ void loop()
       desiredRateLeftEncoder = rcvdData[0];
       desiredRateRightEncoder = rcvdData[1];
     }
-    
-
   }
+  
 
   if (lmbrake == 1) {
     lmbrake = 0;
   }
-
   if (desiredRateLeftEncoder == 0) {
     lmbrake = 1;
   }
-
   if (rmbrake == 1) {
     rmbrake = 0;
   }
-
   if (desiredRateRightEncoder == 0) {
     rmbrake = 1;
   }
+  
   
 // if(Serial.available () != 0){
 ////  Serial.println(420);
@@ -177,7 +151,6 @@ void loop()
   double oldlmenc = lmenc;
   double oldrmenc = rmenc;
 
-  
   MasterReceive();                                   // receive data packet from T'REX controller
   delay(50);
 
@@ -187,16 +160,16 @@ void loop()
   double oldRateLeftEncoder = rateLeftEncoder;
   rateRightEncoder = rmenc - oldrmenc;
   rateLeftEncoder = lmenc - oldlmenc;
-//  if (rateLeftEncoder > 0) {
-//    rateLeftEncoder += 0;
-//  }
-    if (rateLeftEncoder > 255 || rateLeftEncoder < -255) {
+
+  // PREVENTS INTEGER OVERFLOW COMING FROM MOTOR BOARD
+  if (rateLeftEncoder > 255 || rateLeftEncoder < -255) {
     rateLeftEncoder = oldRateLeftEncoder;
   }
-    if (rateRightEncoder > 255 || rateRightEncoder < -255) {
+  if (rateRightEncoder > 255 || rateRightEncoder < -255) {
     rateRightEncoder = oldRateRightEncoder;
   }
 
+  // reset integral after every rotation/move. decide between the two
   if (desiredRateRightEncoder != desiredRateLeftEncoder) {
     resetIntegral = true;
   }
@@ -205,21 +178,28 @@ void loop()
     leftPID.setIntegral(0);
     rightPID.setIntegral(0);
   }
+
+  // change max and min out of pid based on direction of motors. Added for motor protection
+  if (desiredRateRightEncoder < 0 && oldDesiredRateRightEncoder >= 0) {
+    rightPID.setOutputRange(OUTPUT_MIN_BACKWARDS, OUTPUT_MAX_BACKWARDS);
+  } else if (desiredRateRightEncoder >= 0 && oldDesiredRateRightEncoder < 0) {
+    rightPID.setOutputRange(OUTPUT_MIN_FORWARDS, OUTPUT_MAX_FORWARDS);
+  }
+  if (desiredRateLeftEncoder < 0 && oldDesiredRateLeftEncoder >= 0) {
+    leftPID.setOutputRange(OUTPUT_MIN_BACKWARDS, OUTPUT_MAX_BACKWARDS);
+  } else if (desiredRateLeftEncoder >= 0 && oldDesiredRateLeftEncoder < 0) {
+    leftPID.setOutputRange(OUTPUT_MIN_FORWARDS, OUTPUT_MAX_FORWARDS);
+  }
   
   
-  // PID will tune output.
+  
+  // PID integral clamps
   leftPID.setIntegral(clamp(leftPID.getIntegral(), 255, -255));
   leftPID.run();
   rightPID.setIntegral(clamp(rightPID.getIntegral(), 255, -255));
   rightPID.run();
 
-//  if (rightPID.atSetPoint(10) && leftPID.atSetPoint(10) && sync == false){
-//    sync = true;
-//    desiredRateLeftEncoder = 0;
-//    desiredRateRightEncoder = 0;
-//  }
-
-//  
+  
   Serial.print(rateLeftEncoder);
   Serial.print(", "); // a space ' ' or  tab '\t' character is printed between the two values.
   Serial.print(rateRightEncoder);
