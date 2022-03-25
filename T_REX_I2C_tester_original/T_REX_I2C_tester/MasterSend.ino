@@ -39,12 +39,10 @@ void MasterSend(byte sbyte, byte pfreq, int lspeed, byte lbrake, int rspeed, byt
   
   Wire.write(i2caddr);                // I2C slave address for T'REX controller
   Wire.write(i2cfreq);                // I2C clock frequency:   0=100kHz   1=400kHz
-//  Serial.println("about to terminal transmission");
   Wire.endTransmission();             // stop transmitting
-//  Serial.println("transmission terminated");
-//  
-//  Serial.println("Master Command Data Packet Sent");
-//  
+  
+  Serial.println("Master Command Data Packet Sent");
+  
   
   //-------------------------------- Make sure Master and Slave I2C clock the same ------------------------------------------------
   
@@ -57,3 +55,6 @@ void MasterSend(byte sbyte, byte pfreq, int lspeed, byte lbrake, int rspeed, byt
     TWBR=12;                                                                   // changes the I²C clock to 400kHz
   }
 }
+
+
+

@@ -29,12 +29,12 @@ int rmenc=0;
 #define OUTPUT_MIN_BACKWARDS -180                                 
 #define OUTPUT_MAX_BACKWARDS 0
 
-#define KP_L 2
-#define KI_L 1.3
-#define KD_L 0.2
-#define KP_R 2
-#define KI_R 1.3
-#define KD_R 0.1
+#define KP_L 1.8
+#define KI_L 2
+#define KD_L 0.4
+#define KP_R 1.8
+#define KI_R 2
+#define KD_R 0.4
 
 bool sync = false;
 bool resetIntegral = false;
@@ -62,6 +62,10 @@ void setup()
   Serial.begin(115200);
   desiredRateLeftEncoder = 0;
   desiredRateRightEncoder = 0;
+
+  //set bang bang
+  leftPID.setBangBang(40);
+  rightPID.setBangBang(40);
   
   // tune output every 0.1s
   leftPID.setTimeStep(100);
@@ -107,7 +111,7 @@ void loop()
         interimString += rc;
       }
   }
-    if (rcvdData[0] >= 0 && rcvdData[0] < 255) {
+    if (rcvdData[0] >= -255 && rcvdData[0] <= 255) {
       desiredRateLeftEncoder = rcvdData[0];
       desiredRateRightEncoder = rcvdData[1];
     }
@@ -116,15 +120,19 @@ void loop()
 
   if (lmbrake == 1) {
     lmbrake = 0;
+    leftPID.reset();
   }
   if (desiredRateLeftEncoder == 0) {
     lmbrake = 1;
+    leftPID.reset();
   }
   if (rmbrake == 1) {
     rmbrake = 0;
+    rightPID.reset();
   }
   if (desiredRateRightEncoder == 0) {
     rmbrake = 1;
+    rightPID.reset();
   }
   
   
@@ -153,6 +161,10 @@ void loop()
 
   MasterReceive();                                   // receive data packet from T'REX controller
   delay(50);
+
+  if ((desiredRateRightEncoder > 0 && rmenc < 0) || (desiredRateRightEncoder < 0 && rmenc > 0)) {
+    rmenc = -rmenc;
+  }
 
 
   // Calculates the encoder rate of change. Think about if we really need to divide the rate variable by time. I dont think we do.
