@@ -36,6 +36,9 @@ int rmenc=0;
 #define KI_R 2
 #define KD_R 0.4
 
+double moveForwardsIntegralRight, moveForwardsDerivativeRight, moveBackwardsIntegralRight, moveBackwardsDerivativeRight, turnRightIntegralRight, turnRightDerivativeRight, turnLeftIntegralRight, turnLeftDerivativeRight;
+double moveForwardsIntegralLeft, moveForwardsDerivativeLeft, moveBackwardsIntegralLeft, moveBackwardsDerivativeLeft, turnRightIntegralLeft, turnRightDerivativeLeft, turnLeftIntegralLeft, turnLeftDerivativeLeft;
+
 bool sync = false;
 bool resetIntegral = false;
 
@@ -56,6 +59,26 @@ double clamp(double x, double a, double b) {
   }
 }
 
+void tuneForwards() {
+  desiredRateRightEncoder = 40;
+  desiredRateLeftEncoder = 40;
+  long unsigned t1 = millis();
+  long unsigned t2 = millis();
+  
+  while(t2 - t1 < 5000) {
+    leftPID.run();
+    rightPID.run();
+  }
+  moveForwardsIntegralRight = rightPID.getIntegral();
+  moveForwardsIntegralLeft = leftPID.getIntegral();
+  desiredRateRightEncoder = 0;
+  desiredRateLeftEncoder = 0;
+  while (rateRightEncoder != 0 && rateLeftEncoder != 0) {
+    leftPID.run();
+    rightPID.run();
+  }
+}
+
 void setup()
 { 
   Wire.begin();
@@ -70,6 +93,8 @@ void setup()
   // tune output every 0.1s
   leftPID.setTimeStep(100);
   rightPID.setTimeStep(100);
+
+  tuneForwards();
 }
 
 
@@ -134,24 +159,11 @@ void loop()
     rmbrake = 1;
     rightPID.reset();
   }
-  
-  
-// if(Serial.available () != 0){
-////  Serial.println(420);
-//  int tmp = Serial.parseInt();
-//  Serial.read();
-//  if (tmp > 0){
-//    desiredRateLeftEncoder = tmp;
-//    desiredRateRightEncoder = tmp;
-//  }
-//  else if (tmp == -1){
-//    lmspeed = 0;
-//    rmspeed = 0;
-//    desiredRateLeftEncoder = 0;
-//    desiredRateRightEncoder = 0;
-//  }
-//  
-// }
+
+  if ((desiredRateRightEncoder == desiredRateLeftEncoder && desiredRateRightEncoder > 0) && oldDesiredRateRightEncoder != desiredRateRightEncoder) {
+    rightPID.setIntegral(moveForwardsIntegralRight);
+    leftPID.setIntegral(moveForwardsIntegralLeft);
+  }
   
   MasterSend(startbyte,2,(int)lmspeed,lmbrake,(int)rmspeed,rmbrake,sv[0],sv[1],sv[2],sv[3],sv[4],sv[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq);
   delay(50);
