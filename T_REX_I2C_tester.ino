@@ -59,24 +59,100 @@ double clamp(double x, double a, double b) {
   }
 }
 
-void tuneForwards() {
-  desiredRateRightEncoder = 40;
-  desiredRateLeftEncoder = 40;
+void tune(double drenc, double dlenc, String dir) {
+  desiredRateRightEncoder = drenc;
+  desiredRateLeftEncoder = dlenc;
+
   long unsigned t1 = millis();
   long unsigned t2 = millis();
+
+  while((t2 - t1) < 7000) {
+    t2 = millis();
+    MasterSend(startbyte,2,(int)lmspeed,lmbrake,(int)rmspeed,rmbrake,sv[0],sv[1],sv[2],sv[3],sv[4],sv[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq);
+    delay(50);
+    double oldlmenc = lmenc;
+    double oldrmenc = rmenc;
+    MasterReceive();
+    delay(50);
+
+    if ((desiredRateRightEncoder > 0 && rmenc < 0) || (desiredRateRightEncoder < 0 && rmenc > 0)) {
+      rmenc = -rmenc;
+    }
+    
+    double oldRateRightEncoder = rateRightEncoder;
+    double oldRateLeftEncoder = rateLeftEncoder;
+    rateRightEncoder = rmenc - oldrmenc;
+    rateLeftEncoder = lmenc - oldlmenc;
+    leftPID.run();
+    rightPID.run();
+
+    if (lmbrake == 1) {
+      lmbrake = 0;
+      leftPID.reset();
+    }
+    if (desiredRateLeftEncoder == 0) {
+      lmbrake = 1;
+      leftPID.reset();
+    }
+    if (rmbrake == 1) {
+      rmbrake = 0;
+      rightPID.reset();
+    }
+    if (desiredRateRightEncoder == 0) {
+      rmbrake = 1;
+      rightPID.reset();
+    }
+
+    Serial.print(rateLeftEncoder);
+    Serial.print(", "); // a space ' ' or  tab '\t' character is printed between the two values.
+    Serial.print(rateRightEncoder);
+    Serial.print(", "); // a space ' ' or  tab '\t' character is printed between the two values.
   
-  while(t2 - t1 < 5000) {
-    leftPID.run();
-    rightPID.run();
+//  Serial.print(desiredRateLeftEncoder);
+//  Serial.print(", ");
+    Serial.print(lmspeed);
+    Serial.print(", ");
+    Serial.println(rmspeed);
   }
-  moveForwardsIntegralRight = rightPID.getIntegral();
-  moveForwardsIntegralLeft = leftPID.getIntegral();
-  desiredRateRightEncoder = 0;
-  desiredRateLeftEncoder = 0;
-  while (rateRightEncoder != 0 && rateLeftEncoder != 0) {
-    leftPID.run();
-    rightPID.run();
+
+  if (dir == "FORWARDS") {
+    moveForwardsIntegralRight = rightPID.getIntegral();
+    moveForwardsIntegralLeft = leftPID.getIntegral();
+  } else if (dir == "BACKWARDS") {
+    moveBackwardsIntegralRight = rightPID.getIntegral();
+    moveBackwardsIntegralLeft = leftPID.getIntegral();
+  } else if (dir == "LEFT") {
+    turnLeftIntegralRight = rightPID.getIntegral();
+    turnLeftIntegralLeft = leftPID.getIntegral();
+  } else if (dir == "RIGHT") {
+    turnRightIntegralRight = rightPID.getIntegral();
+    turnRightIntegralLeft = leftPID.getIntegral();
   }
+
+  leftPID.reset();
+  rightPID.reset();
+  
+}
+
+
+void tuneForwards() {
+  tune(30,30,"FORWARDS");
+  tune(0,0,"NOTHING");
+  leftPID.setOutputRange(OUTPUT_MIN_BACKWARDS, OUTPUT_MAX_BACKWARDS);
+  rightPID.setOutputRange(OUTPUT_MIN_BACKWARDS, OUTPUT_MAX_BACKWARDS);
+  tune(-30,-30, "BACKWARDS");
+  tune(0,0,"NOTHING");
+  leftPID.setOutputRange(OUTPUT_MIN_BACKWARDS, OUTPUT_MAX_BACKWARDS);
+  rightPID.setOutputRange(OUTPUT_MIN_FORWARDS, OUTPUT_MAX_FORWARDS);
+  tune(20,-20, "LEFT");
+  tune(0,0,"NOTHING");
+  leftPID.setOutputRange(OUTPUT_MIN_FORWARDS, OUTPUT_MAX_FORWARDS);
+  rightPID.setOutputRange(OUTPUT_MIN_BACKWARDS, OUTPUT_MAX_BACKWARDS);
+  tune(-20,20, "RIGHT");
+  tune(0,0,"NOTHING");
+  
+  leftPID.setOutputRange(OUTPUT_MIN_FORWARDS, OUTPUT_MAX_FORWARDS);
+  rightPID.setOutputRange(OUTPUT_MIN_FORWARDS, OUTPUT_MAX_FORWARDS);
 }
 
 void setup()
@@ -86,10 +162,6 @@ void setup()
   desiredRateLeftEncoder = 0;
   desiredRateRightEncoder = 0;
 
-  //set bang bang
-  leftPID.setBangBang(40);
-  rightPID.setBangBang(40);
-  
   // tune output every 0.1s
   leftPID.setTimeStep(100);
   rightPID.setTimeStep(100);
@@ -163,6 +235,15 @@ void loop()
   if ((desiredRateRightEncoder == desiredRateLeftEncoder && desiredRateRightEncoder > 0) && oldDesiredRateRightEncoder != desiredRateRightEncoder) {
     rightPID.setIntegral(moveForwardsIntegralRight);
     leftPID.setIntegral(moveForwardsIntegralLeft);
+  } else if ((desiredRateRightEncoder == desiredRateLeftEncoder && desiredRateRightEncoder < 0) && oldDesiredRateRightEncoder != desiredRateRightEncoder) {
+    rightPID.setIntegral(moveBackwardsIntegralRight);
+    leftPID.setIntegral(moveBackwardsIntegralLeft);
+  } else if ((desiredRateLeftEncoder < 0 && oldDesiredRateLeftEncoder >= 0)) {
+    rightPID.setIntegral(turnLeftIntegralRight);
+    leftPID.setIntegral(turnLeftIntegralLeft);
+  } else if (desiredRateRightEncoder < 0 && oldDesiredRateRightEncoder >= 0) {
+    rightPID.setIntegral(turnRightIntegralRight);
+    leftPID.setIntegral(turnRightIntegralLeft);
   }
   
   MasterSend(startbyte,2,(int)lmspeed,lmbrake,(int)rmspeed,rmbrake,sv[0],sv[1],sv[2],sv[3],sv[4],sv[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq);
