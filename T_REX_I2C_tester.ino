@@ -29,12 +29,12 @@ int rmenc=0;
 #define OUTPUT_MIN_BACKWARDS -180                                 
 #define OUTPUT_MAX_BACKWARDS 0
 
-#define KP_L 1.8
-#define KI_L 2
-#define KD_L 0.4
-#define KP_R 1.8
-#define KI_R 2
-#define KD_R 0.4
+#define KP_L 1.2
+#define KI_L 1
+#define KD_L 0.1
+#define KP_R 1.2
+#define KI_R 1
+#define KD_R 0.1
 
 double moveForwardsIntegralRight, moveForwardsDerivativeRight, moveBackwardsIntegralRight, moveBackwardsDerivativeRight, turnRightIntegralRight, turnRightDerivativeRight, turnLeftIntegralRight, turnLeftDerivativeRight;
 double moveForwardsIntegralLeft, moveForwardsDerivativeLeft, moveBackwardsIntegralLeft, moveBackwardsDerivativeLeft, turnRightIntegralLeft, turnRightDerivativeLeft, turnLeftIntegralLeft, turnLeftDerivativeLeft;
