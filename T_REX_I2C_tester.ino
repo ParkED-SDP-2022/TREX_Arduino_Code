@@ -29,15 +29,15 @@ int rmenc=0;
 #define OUTPUT_MIN_BACKWARDS -180                                 
 #define OUTPUT_MAX_BACKWARDS 0
 
-#define KP_L 1.8
-#define KI_L 2
-#define KD_L 0.4
-#define KP_R 1.8
-#define KI_R 2
-#define KD_R 0.4
+#define KP_L 1.3
+#define KI_L 1
+#define KD_L 0.2
+#define KP_R 1.3
+#define KI_R 1
+#define KD_R 0.2
 
-double moveForwardsIntegralRight, moveForwardsDerivativeRight, moveBackwardsIntegralRight, moveBackwardsDerivativeRight, turnRightIntegralRight, turnRightDerivativeRight, turnLeftIntegralRight, turnLeftDerivativeRight;
-double moveForwardsIntegralLeft, moveForwardsDerivativeLeft, moveBackwardsIntegralLeft, moveBackwardsDerivativeLeft, turnRightIntegralLeft, turnRightDerivativeLeft, turnLeftIntegralLeft, turnLeftDerivativeLeft;
+double moveForwardsIntegralRight, moveBackwardsIntegralRight, turnRightIntegralRight, turnLeftIntegralRight;
+double moveForwardsIntegralLeft, moveBackwardsIntegralLeft, turnRightIntegralLeft, turnLeftIntegralLeft;
 
 bool sync = false;
 bool resetIntegral = false;
@@ -65,8 +65,12 @@ void tune(double drenc, double dlenc, String dir) {
 
   long unsigned t1 = millis();
   long unsigned t2 = millis();
+  int t_tune = 12000;
+  if (drenc == 0 && dlenc == 0){
+    t_tune = 2000;
+  }
 
-  while((t2 - t1) < 7000) {
+  while((t2 - t1) < t_tune) {
     t2 = millis();
     MasterSend(startbyte,2,(int)lmspeed,lmbrake,(int)rmspeed,rmbrake,sv[0],sv[1],sv[2],sv[3],sv[4],sv[5],devibrate,sensitivity,lowbat,i2caddr,i2cfreq);
     delay(50);
@@ -135,7 +139,7 @@ void tune(double drenc, double dlenc, String dir) {
 }
 
 
-void tuneForwards() {
+void tuneAllDirections() {
   tune(30,30,"FORWARDS");
   tune(0,0,"NOTHING");
   leftPID.setOutputRange(OUTPUT_MIN_BACKWARDS, OUTPUT_MAX_BACKWARDS);
@@ -166,7 +170,7 @@ void setup()
   leftPID.setTimeStep(100);
   rightPID.setTimeStep(100);
 
-  tuneForwards();
+  tuneAllDirections();
 }
 
 
@@ -313,7 +317,7 @@ void loop()
 //  Serial.print(desiredRateLeftEncoder);
 //  Serial.print(", ");
   Serial.print(lmspeed);
-   Serial.print(", ");
+  Serial.print(", ");
   Serial.println(rmspeed);
 //  Serial.print(", ");
 //  Serial.println(leftPID.getIntegral());
